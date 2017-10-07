@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<items version="2" >
+
+    <item
+        is-multidex="false"
+        jar="/home/laurynas/.android/build-cache/6ad5c25b83e589fdaca6d53be64716c73169439e/output/jars/classes.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.0"
+        sha1="ee3a189df1c5bc8f17f6cec06e4438a940c4d0ba">
+        <dex dex="/home/laurynas/workspace/coin-detection/tango-examples-java/java_point_to_point_example/app/build/intermediates/pre-dexed/debug/classes_155c077c2149c9814764e568fc4ad91e4e8c28b3.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/laurynas/.android/build-cache/7b62fa0f8e8296d61aaee3a135cf0013c99edfef/output/jars/classes.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.0"
+        sha1="4fcf0b1879f8caf497c073e1432d398e9e2988c1">
+        <dex dex="/home/laurynas/workspace/coin-detection/tango-examples-java/java_point_to_point_example/app/build/intermediates/pre-dexed/debug/classes_cb7204afee2d3316d80decdb5fd28a3cac72c213.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/laurynas/.android/build-cache/283fc49cd95c00017c1d9ad518b592747333f5cd/output/jars/classes.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.0"
+        sha1="b095a4a76c3e5394339cb2579abba705675c10d4">
+        <dex dex="/home/laurynas/workspace/coin-detection/tango-examples-java/java_point_to_point_example/app/build/intermediates/pre-dexed/debug/classes_542a8c2f6953eac8f3ae53d663c3e73031c12b84.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/laurynas/.android/build-cache/f2f2459818e9fa7e943deee8ba0e87a238477dda/output/jars/classes.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.0"
+        sha1="29ecfa28aefecd095ca2f1508403c27188ba5240">
+        <dex dex="/home/laurynas/workspace/coin-detection/tango-examples-java/java_point_to_point_example/app/build/intermediates/pre-dexed/debug/classes_ecbe3e3438894b1d7e7b68a4544defae8a9fb00e.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/laurynas/Android/Sdk/extras/android/m2repository/com/android/support/support-annotations/23.0.0/support-annotations-23.0.0.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.0"
+        sha1="990e7f98a7bad86a40b1f0bcfeb039023afd0839">
+        <dex dex="/home/laurynas/workspace/coin-detection/tango-examples-java/java_point_to_point_example/app/build/intermediates/pre-dexed/debug/support-annotations-23.0.0_520de49a99ec40639558eadd598fd40ed7419eac.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/laurynas/.android/build-cache/b00c5fa4a89eb17ed2d83def4a5d0b82e08cd442/output/jars/libs/internal_impl-23.0.0.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.0"
+        sha1="8bd336eeae661e8311330284897ee07f8ebaa297">
+        <dex dex="/home/laurynas/workspace/coin-detection/tango-examples-java/java_point_to_point_example/app/build/intermediates/pre-dexed/debug/internal_impl-23.0.0_79f040f7131835bd0852c7f0529362bcaa592c99.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/laurynas/.android/build-cache/90033bacd5a3fe6e2b60093195aea29212026bc7/output/jars/classes.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.0"
+        sha1="db39b62003a6e892785269d56bb72890f75ea69c">
+        <dex dex="/home/laurynas/workspace/coin-detection/tango-examples-java/java_point_to_point_example/app/build/intermediates/pre-dexed/debug/classes_544d1fc1d76d84833bb9766ef55e26052fd2c0c0.jar" />
+    </item>
+    <item
+        is-multidex="false"
+        jar="/home/laurynas/.android/build-cache/b00c5fa4a89eb17ed2d83def4a5d0b82e08cd442/output/jars/classes.jar"
+        jumboMode="false"
+        optimize="true"
+        revision="25.0.0"
+        sha1="8413c27b45b7fe61dca4a98159f65e2cee215f5a">
+        <dex dex="/home/laurynas/workspace/coin-detection/tango-examples-java/java_point_to_point_example/app/build/intermediates/pre-dexed/debug/classes_0ccb5cf557b28e1a40f7f1e104e25182e7de8552.jar" />
+    </item>
+
+</items>

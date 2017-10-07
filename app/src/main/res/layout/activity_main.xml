@@ -1,0 +1,99 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.projecttango.examples.java.pointtopoint.PointToPointActivity">
+
+    <org.rajawali3d.view.SurfaceView
+        android:id="@+id/ar_view"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:layout_gravity="top" />
+
+    <LinearLayout
+        android:id="@+id/linearLayout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:orientation="vertical"
+        android:paddingLeft="5dp">
+
+        <LinearLayout
+            android:layout_width="240dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="17dp"
+            android:layout_marginTop="15dp"
+            android:gravity="top"
+            android:orientation="horizontal"
+            android:paddingEnd="12dp"
+            android:paddingStart="5dp">
+
+            <CheckBox
+                android:id="@+id/check_box"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/bilateral"
+                android:textSize="20sp" />
+
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/linearLayout1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentTop="true"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/measurement" />
+
+            <TextView
+                android:id="@+id/distance_textview"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_gravity="bottom|end">
+
+            <Button
+                android:id="@+id/record_button"
+                android:onClick="onRecordClick"
+                android:text="Start recording"
+                android:textSize="22sp"
+                android:layout_width="120dp"
+                android:layout_height="100dp"
+                android:layout_margin="30dp" />
+
+            <Button
+                android:id="@+id/play_button"
+                android:onClick="onPlayClick"
+                android:text="Start playing"
+                android:visibility="gone"
+                android:textSize="22sp"
+                android:layout_width="120dp"
+                android:layout_height="100dp"
+                android:layout_margin="30dp" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/crosshair"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:layout_gravity="center"
+        android:src="@drawable/crosshair" />
+
+    <!-- Crosshair -->
+
+</FrameLayout>
