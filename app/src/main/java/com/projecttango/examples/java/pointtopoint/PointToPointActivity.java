@@ -22,8 +22,8 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.hardware.display.DisplayManager;
+import android.media.AudioRecord;
 import android.media.MediaPlayer;
-import android.media.MediaRecorder;
 import android.opengl.Matrix;
 import android.os.Bundle;
 import android.os.Handler;
@@ -31,7 +31,6 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.Display;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -57,8 +56,11 @@ import com.google.tango.depthinterpolation.TangoDepthInterpolation;
 import com.google.tango.support.TangoPointCloudManager;
 import com.google.tango.support.TangoSupport;
 import com.google.tango.transformhelpers.TangoTransformHelper;
+import com.projecttango.examples.java.utils.AudioRecordHelper;
+import com.projecttango.examples.java.utils.AudioRecordThread;
+import com.projecttango.examples.java.utils.BufferedRandomAccessFile;
+import com.projecttango.examples.java.utils.RecordListener;
 
-import org.rajawali3d.math.vector.Vector3;
 import org.rajawali3d.scene.ASceneFrameCallback;
 import org.rajawali3d.view.SurfaceView;
 
@@ -67,11 +69,9 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 
 /**
  * An example showing how to build a very simple point-to-point measurement app
@@ -87,20 +87,86 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * For more details on the augmented reality effects, including color camera texture rendering,
  * see java_augmented_reality_example or java_hello_video_example.
  */
-public class PointToPointActivity extends Activity implements View.OnTouchListener {
+public class PointToPointActivity extends Activity implements RecordListener {
+    private long time;
+    protected Runnable mRecordAutoCountRunnable = new Runnable() {
+        @Override
+        public void run() {
+            long current = System.currentTimeMillis();
+            if (mStartTime == 0) {
+                mStartTime = current;
+            }
+            time = current - mStartTime;
+            mHandler.postDelayed(this, 0);
+        }
+    };
 
+    protected Runnable pointMeasureRunnable = new Runnable() {
+        @Override
+        public void run() {
+
+            MeasuredPoint point = getMeasuredPoint();
+
+            if (point != null) {
+
+                allMeasuredPoints.add(point);
+                float[] openGLPoint = toOpenGLSpace(point);
+
+                if (openGLPoint != null) {
+                    Log.e("WRITER", writer.toString());
+                    Log.e("COORDINATES", "(" + Float.toString(openGLPoint[0]) + "; " + Float.toString(openGLPoint[1]) + "; " + Float.toString(openGLPoint[2]) + ") at time: " + point.mTimestamp);
+
+                    try {
+                        writer.write(Float.toString(openGLPoint[0]) + "; " + Float.toString(openGLPoint[1]) + "; " + Float.toString(openGLPoint[2]) + "; " + point.recordingTimestamp);
+                        writer.newLine();
+                    } catch (IOException e) {
+                        Log.e("WRITER", "Cannot write to file", e);
+                    }
+                } else {
+                    Log.e("==", "OpenGL point is null....");
+
+                }
+            } else {
+                Log.e("==", "Point is null....");
+            }
+
+            handler.postDelayed(this, handlerDelay);
+        }
+    };
+
+    // Record
+    @Override
+    public void onRecordStart() {
+        mHandler.post(mRecordAutoCountRunnable);
+    }
+
+    @Override
+    public void onRecordStop() {
+        mHandler.removeCallbacks(mRecordAutoCountRunnable);
+    }
+
+    @Override
+    protected void onDestroy() {
+        mHandler.removeCallbacks(mRecordAutoCountRunnable);
+        mAudioRecordHelper.stopRecord();
+        super.onDestroy();
+    }
 
     private class MeasuredPoint {
         public double mTimestamp;
+        public double recordingTimestamp;
         public float[] mDepthTPoint;
 
 
-        public MeasuredPoint(double timestamp, float[] depthTPoint) {
+        public MeasuredPoint(double timestamp, float[] depthTPoint, double rTimestamp) {
             mTimestamp = timestamp;
             mDepthTPoint = depthTPoint;
+            recordingTimestamp = rTimestamp;
         }
     }
 
+    protected Handler mmHandler;
+    protected long mStartTime;
     private static final String TAG = PointToPointActivity.class.getSimpleName();
 
     private static final String CAMERA_PERMISSION = Manifest.permission.CAMERA;
@@ -133,11 +199,6 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
 
     // Two measured points in Depth Camera space.
     private MeasuredPoint[] mMeasuredPoints = new MeasuredPoint[2];
-
-    // Two measured points in OpenGL space, we used a stack to hold the data is because rajawalli
-    // LineRenderer expects a stack of points to be passed in. This is render ready data format from
-    // Rajawalli's perspective.
-    private Stack<Vector3> mMeasurePoitnsInOpenGLSpace = new Stack<Vector3>();
     private float mMeasuredDistance = 0.0f;
 
     // Handles the debug text UI update loop.
@@ -149,13 +210,10 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
     private Handler handler;
     private int handlerDelay;
     private BufferedWriter writer;
-    private File file;
     private FileWriter writeFile;
 //    --------------------- Audio Recording ---------------------------------
 
-
-    //    private static String mFileName = "/home/laurynas/workspace/coin-detection/audio_cache/test.3gp";
-    private static String mFileName;
+    private String mFileName;
     private ArrayList<MeasuredPoint> allMeasuredPoints = new ArrayList<>();
 
     private static final String LOG_TAG = "AudioRecordTest";
@@ -166,12 +224,14 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
 
     private Button mRecordButton;
 
-    private MediaRecorder mRecorder = null;
+    private AudioRecord mRecorder = null;
 
     private Button mPlayButton;
     private MediaPlayer mPlayer = null;
+    private AudioRecordHelper mAudioRecordHelper;
     private boolean mStartPlaying = true;
     private boolean mStartRecording = true;
+
 
     private void startPlaying() {
         mPlayer = new MediaPlayer();
@@ -205,56 +265,34 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
 
     private void onRecord(boolean start) {
         if (start) {
-            startRecording();
+            handler = new Handler();
+            handlerDelay = 100; //milliseconds
+            mRecordButton.setText("Stop recording");
+
+            File audioFile = createTempAudioFile();
+            mAudioRecordHelper.startRecord(audioFile);
+            handler.postDelayed(pointMeasureRunnable, handlerDelay);
         } else {
-            stopRecording();
+
+            try {
+                writer.close();
+
+            } catch (IOException e) {
+                Log.e("WRITER", e.toString());
+            }
+            mRecordButton.setText("Start recording");
+            mPlayButton.setVisibility(View.VISIBLE);
+            handler.removeCallbacks(pointMeasureRunnable);
+            mAudioRecordHelper.stopRecord();
         }
-    }
-
-    private void startRecording() {
-        mRecorder = new MediaRecorder();
-        mRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-        mRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
-        mRecorder.setOutputFile(mFileName);
-        mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-
-        try {
-            mRecorder.prepare();
-
-        } catch (IOException e) {
-            Log.e(LOG_TAG, "prepare() failed");
-        }
-        try {
-            mRecorder.start();
-
-        } catch (Exception e) {
-            Log.e(LOG_TAG, "start() failed");
-        }
-    }
-
-    private void stopRecording() {
-        try {
-            mRecorder.stop();
-
-        } catch (Exception e) {
-            Log.e(LOG_TAG, "stop() failed");
-        }
-        try {
-            mRecorder.release();
-
-        } catch (Exception e) {
-            Log.e(LOG_TAG, "release() failed");
-        }
-
-        mRecorder = null;
     }
 
     public synchronized void onPlayClick(View view) {
 
-        mStartPlaying = true;
         onPlay(mStartPlaying);
         if (mStartPlaying) {
             mPlayButton.setText("Stop playing");
+
         } else {
             mPlayButton.setText("Start playing");
         }
@@ -264,65 +302,16 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
     public void onRecordClick(View view) {
 
         onRecord(mStartRecording);
-        if (mStartRecording) {
-            mRecordButton.setText("Stop recording");
-
-
-            handler = new Handler();
-            handlerDelay = 100; //milliseconds
-
-            handler.postDelayed(new Runnable() {
-                public void run() {
-                    Calendar cal = Calendar.getInstance();
-                    SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
-
-                    MeasuredPoint point = getMeasuredPoint();
-
-                    if (point != null) {
-
-                        allMeasuredPoints.add(point);
-                        float[] openGLPoint = toOpenGLSpace(point);
-
-                        if (openGLPoint != null) {
-                            Log.e("WRITER", writer.toString());
-                            Log.e("COORDINATES", "(" + Float.toString(openGLPoint[0]) + "; " + Float.toString(openGLPoint[1]) + "; " + Float.toString(openGLPoint[2]) + ") at time: " + point.mTimestamp);
-
-                            try {
-                                writer.write(Float.toString(openGLPoint[0]) + "; " + Float.toString(openGLPoint[1]) + "; " + Float.toString(openGLPoint[2]) + "; " + point.mTimestamp);
-                                writer.newLine();
-                            } catch (IOException e) {
-                                Log.e("WRITER", "Cannot write to file", e);
-                            }
-                        } else {
-                            Log.e("==", "OpenGL point is null....");
-
-                        }
-                    } else {
-                        Log.e("==", "Point is null....");
-                    }
-                    Log.e("==", sdf.format(cal.getTime()));
-
-                    handler.postDelayed(this, handlerDelay);
-                }
-            }, handlerDelay);
-
-
-        } else {
-            handler.removeCallbacksAndMessages(null);
-            try {
-                writer.close();
-
-            } catch (IOException e) {
-                Log.e("WRITER", e.toString());
-            }
-            mRecordButton.setText("Start recording");
-        }
         mStartRecording = !mStartRecording;
     }
 
+    //    -----------------------------------------------------------------------
+    private File createTempAudioFile() {
+        File tempFile = null;
+        tempFile = new File(mFileName, "audio" + ".wav");
 
-//    -----------------------------------------------------------------------
-
+        return tempFile;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -331,12 +320,10 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
 
 
 //        -------------- Audio recording -------------------------------------
-        mFileName = "/storage/sdcard0/Music";
-        mFileName += "/audiorecordtest.3gp";
+        mAudioRecordHelper = new AudioRecordHelper();
+        mAudioRecordHelper.setAudioRecordListener(this);
 
-        // Record to the external cache directory for visibility
-//        mFileName = getExternalCacheDir().getAbsolutePath();
-//        mFileName += "/audiorecordtest.3gp";
+        mFileName = "/storage/sdcard0/Music";
 
         ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION);
         Log.e("==", "will try to init writer");
@@ -349,8 +336,6 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
             Log.e("FILE EXCEPTION", msg.toString());
         }
         mRecordButton = (Button) findViewById(R.id.record_button);
-        Log.e("DEEEEEEEEEEEEEEE", mFileName);
-
         mPlayButton = (Button) findViewById(R.id.play_button);
 
 
@@ -359,7 +344,6 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
         mSurfaceView = (SurfaceView) findViewById(R.id.ar_view);
         mRenderer = new PointToPointRenderer(this);
         mSurfaceView.setSurfaceRenderer(mRenderer);
-        mSurfaceView.setOnTouchListener(this);
         mPointCloudManager = new TangoPointCloudManager();
         mDistanceTextview = (TextView) findViewById(R.id.distance_textview);
         mBilateralBox = (CheckBox) findViewById(R.id.check_box);
@@ -653,60 +637,6 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
                                 Log.w(TAG, "Can't get device pose at time: " +
                                         mRgbTimestampGlThread);
                             }
-
-                            // If both points have been measured, we transform the points to OpenGL
-                            // space, and send it to mRenderer to render.
-                            if (mMeasuredPoints[0] != null && mMeasuredPoints[1] != null) {
-                                // To make sure drift correct pose is also applied to virtual
-                                // object (measured points).
-                                // We need to re-query the Start of Service to Depth camera
-                                // pose every frame. Note that you will need to use the timestamp
-                                // at the time when the points were measured to query the pose.
-                                TangoSupport.MatrixTransformData openglTDepthArr0 =
-                                        TangoSupport.getMatrixTransformAtTime(
-                                                mMeasuredPoints[0].mTimestamp,
-                                                TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
-                                                TangoPoseData.COORDINATE_FRAME_CAMERA_DEPTH,
-                                                TangoSupport.ENGINE_OPENGL,
-                                                TangoSupport.ENGINE_TANGO,
-                                                TangoSupport.ROTATION_IGNORED);
-
-                                TangoSupport.MatrixTransformData openglTDepthArr1 =
-                                        TangoSupport.getMatrixTransformAtTime(
-                                                mMeasuredPoints[1].mTimestamp,
-                                                TangoPoseData.COORDINATE_FRAME_START_OF_SERVICE,
-                                                TangoPoseData.COORDINATE_FRAME_CAMERA_DEPTH,
-                                                TangoSupport.ENGINE_OPENGL,
-                                                TangoSupport.ENGINE_TANGO,
-                                                TangoSupport.ROTATION_IGNORED);
-
-                                if (openglTDepthArr0.statusCode == TangoPoseData.POSE_VALID &&
-                                        openglTDepthArr1.statusCode == TangoPoseData.POSE_VALID) {
-                                    mMeasurePoitnsInOpenGLSpace.clear();
-                                    float[] p0 = TangoTransformHelper.transformPoint(
-                                            openglTDepthArr0.matrix,
-                                            mMeasuredPoints[0].mDepthTPoint);
-                                    float[] p1 = TangoTransformHelper.transformPoint(
-                                            openglTDepthArr1.matrix,
-                                            mMeasuredPoints[1].mDepthTPoint);
-
-                                    Log.e("COORDINATES", "(" + Float.toString(p0[0]) + "; " + Float.toString(p0[1]) + "; " + Float.toString(p0[2]) + ")");
-                                    Log.e("COORDINATES", "(" + Float.toString(p1[0]) + "; " + Float.toString(p1[1]) + "; " + Float.toString(p1[2]) + ")");
-
-
-                                    mMeasurePoitnsInOpenGLSpace.push(
-                                            new Vector3(p0[0], p0[1], p0[2]));
-                                    mMeasurePoitnsInOpenGLSpace.push(
-                                            new Vector3(p1[0], p1[1], p1[2]));
-
-                                    mMeasuredDistance = (float) Math.sqrt(
-                                            Math.pow(p0[0] - p1[0], 2) +
-                                                    Math.pow(p0[1] - p1[1], 2) +
-                                                    Math.pow(p0[2] - p1[2], 2));
-                                }
-                            }
-
-                            mRenderer.setLine(mMeasurePoitnsInOpenGLSpace);
                         }
                     }
                     // Avoid crashing the application due to unhandled exceptions.
@@ -768,11 +698,8 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
     }
 
     public MeasuredPoint getMeasuredPoint() {
-        // Calculate click location in u,v (0;1) coordinates.
-//        float u = motionEvent.getX() / view.getWidth();
-//        float v = motionEvent.getY() / view.getHeight();
-        float u = 0.5f;
-        float v = 0.5f;
+        float u = .5f;
+        float v = .5f;
 
         try {
             // Place point near the clicked point using the latest point cloud data.
@@ -830,43 +757,6 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
         return p0;
     }
 
-    @Override
-    public boolean onTouch(View view, MotionEvent motionEvent) {
-        if (motionEvent.getAction() == MotionEvent.ACTION_UP) {
-            // Calculate click location in u,v (0;1) coordinates.
-            float u = motionEvent.getX() / view.getWidth();
-            float v = motionEvent.getY() / view.getHeight();
-
-            try {
-                // Place point near the clicked point using the latest point cloud data.
-                // Synchronize against concurrent access to the RGB timestamp in the OpenGL thread
-                // and a possible service disconnection due to an onPause event.
-                MeasuredPoint newMeasuredPoint;
-                synchronized (this) {
-                    newMeasuredPoint = getDepthAtTouchPosition(u, v);
-                }
-                if (newMeasuredPoint != null) {
-                    // Update a line endpoint to the touch location.
-                    // This update is made thread-safe by the renderer.
-                    updateLine(newMeasuredPoint);
-                } else {
-                    Log.w(TAG, "Point was null.");
-                }
-
-            } catch (TangoException t) {
-                Toast.makeText(getApplicationContext(),
-                        R.string.failed_measurement,
-                        Toast.LENGTH_SHORT).show();
-                Log.e(TAG, getString(R.string.failed_measurement), t);
-            } catch (SecurityException t) {
-                Toast.makeText(getApplicationContext(),
-                        R.string.failed_permissions,
-                        Toast.LENGTH_SHORT).show();
-                Log.e(TAG, getString(R.string.failed_permissions), t);
-            }
-        }
-        return true;
-    }
 
     /**
      * Use the Tango Support Library with point cloud data to calculate the depth
@@ -874,7 +764,18 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
      * Vector3 in OpenGL world space.
      */
     private MeasuredPoint getDepthAtTouchPosition(float u, float v) {
+        double recordTimestamp = 0L;
+        BufferedRandomAccessFile bufferedFile = mAudioRecordHelper.getmAudioRecordThread().getBufferedRandomAccessFile();
+        if (bufferedFile != null) {
+            recordTimestamp = mAudioRecordHelper.getmAudioRecordThread().getBufferedRandomAccessFile().getFilePointer()
+                    / (AudioRecordThread.getBitsPerSample() / 8.0) / AudioRecordThread.getSamplesPerSec() / AudioRecordThread.getCHANNELS();
+//
+        } else {
+            Log.w("==", "returned null cause buffered file has not been created yet");
+            return null;
+        }
         TangoPointCloudData pointCloud = mPointCloudManager.getLatestPointCloud();
+
         if (pointCloud == null) {
             return null;
         }
@@ -926,7 +827,7 @@ public class PointToPointActivity extends Activity implements View.OnTouchListen
             return null;
         }
 
-        return new MeasuredPoint(rgbTimestamp, depthPoint);
+        return new MeasuredPoint(rgbTimestamp, depthPoint, recordTimestamp);
     }
 
     /**
